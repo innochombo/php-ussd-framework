@@ -1,0 +1,24 @@
+{
+    "name": "phpussd/phpussd",
+    "description": "A fast, minimal PHP framework for building state-machine-based USSD applications.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["ussd", "php", "africa", "sms", "telecom", "state-machine"],
+    "require": {
+        "php": ">=8.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "PhpUssd\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "PhpUssd\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "stable"
+}
