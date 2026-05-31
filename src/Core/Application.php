@@ -34,6 +34,7 @@ class Application
     private LanguageManager          $lang;
     private HttpClient               $http;
     private MenuRouter               $router;
+    private array                    $middleware = [];
 
     public function __construct(array $config)
     {
@@ -49,41 +50,9 @@ class Application
     public function run(array $payload): string
     {
         try {
-            $request = $this->gateway->parse($payload);
-
-            // Load session for this request
-            $this->session->load($request->sessionId);
-
-            // Sync language from session
-            $sessionLang = $this->session->get('_language');
-            if ($sessionLang) {
-                $this->lang->setActive($sessionLang);
-            }
-
-            // Build HTTP client with auth token if present
-            $http = $this->http;
-            $token = $this->session->get('auth_token');
-            if ($token) {
-                $http = $http->withToken($token);
-            }
-
-            // Run the state machine
-            $navigator = new MenuNavigator(
-                router:        $this->router,
-                session:       $this->session,
-                lang:          $this->lang,
-                http:          $http,
-                defaultMenuId: $this->config->require('default_menu'),
-                mainMenuId:    $this->config->require('main_menu'),
-            );
-
-            $response = $navigator->handle($request);
-
-            // Batch-write session once — not on every set() call
-            $this->session->save();
-
+            $result = $this->dispatch($payload);
             $this->gateway->sendHeaders();
-            return $this->gateway->serialize($response);
+            return $result;
 
         } catch (UssdException $e) {
             error_log('[PhpUssd] UssdException: ' . $e->getMessage());
@@ -97,6 +66,59 @@ class Application
         }
     }
 
+    private function dispatch(array $payload): string
+    {
+        $core = function (array $payload): string {
+            return $this->process($payload);
+        };
+
+        foreach (array_reverse($this->middleware) as $middleware) {
+            $core = function (array $payload) use ($middleware, $core): string {
+                return $middleware->process($payload, $core);
+            };
+        }
+
+        return $core($payload);
+    }
+
+    private function process(array $payload): string
+    {
+        $request = $this->gateway->parse($payload);
+
+        // Load session for this request
+        $this->session->load($request->sessionId);
+
+        // Sync language from session
+        $sessionLang = $this->session->get('_language');
+        if ($sessionLang) {
+            $this->lang->setActive($sessionLang);
+        }
+
+        // Build HTTP client with auth token if present
+        $http = $this->http;
+        $token = $this->session->get('auth_token');
+        if ($token) {
+            $http = $http->withToken($token);
+        }
+
+        // Run the state machine
+        $navigator = new MenuNavigator(
+            router:        $this->router,
+            session:       $this->session,
+            lang:          $this->lang,
+            http:          $http,
+            defaultMenuId: $this->config->require('default_menu'),
+            mainMenuId:    $this->config->require('main_menu'),
+        );
+
+        $response = $navigator->handle($request);
+
+        // Batch-write session once — not on every set() call
+        $this->session->save();
+
+        return $this->gateway->serialize($response);
+    }
+
     // ── Boot sequence ──────────────────────────────────────────────────────
 
     private function boot(): void
@@ -106,6 +128,7 @@ class Application
         $this->bootLanguages();
         $this->bootHttpClient();
         $this->bootMenuRouter();
+        $this->bootMiddleware();
     }
 
     private function bootGateway(): void
@@ -171,5 +194,48 @@ class Application
     {
         $menus = $this->config->require('menus');
         $this->router = new MenuRouter($menus);
+    }
+
+    private function bootMiddleware(): void
+    {
+        $definitions = $this->config->get('middleware', []);
+
+        foreach ((array) $definitions as $definition) {
+            $this->middleware[] = $this->resolveMiddleware($definition);
+        }
+    }
+
+    private function resolveMiddleware(mixed $definition): MiddlewareInterface
+    {
+        if (is_string($definition)) {
+            if (!class_exists($definition)) {
+                throw ConfigurationException::invalidDriver('middleware', $definition);
+            }
+
+            return new $definition();
+        }
+
+        if (is_array($definition)) {
+            $class = $definition['class'] ?? null;
+            $options = $definition['options'] ?? [];
+
+            if (!is_string($class) || !class_exists($class)) {
+                throw ConfigurationException::invalidDriver('middleware.class', (string) $class);
+            }
+
+            return new $class(is_array($options) ? $options : []);
+        }
+
+        if (is_callable($definition)) {
+            $middleware = $definition($this->config);
+
+            if (!$middleware instanceof MiddlewareInterface) {
+                throw new \InvalidArgumentException('Middleware factory must return an instance of MiddlewareInterface.');
+            }
+
+            return $middleware;
+        }
+
+        throw new \InvalidArgumentException('Invalid middleware definition provided.');
     }
 }

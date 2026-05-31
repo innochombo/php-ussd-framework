@@ -40,6 +40,20 @@ return [
         ],
     ],
 
+    // ── Middleware ───────────────────────────────────────────────────────────
+    'middleware' => [
+        [
+            'class' => \PhpUssd\Http\CorsMiddleware::class,
+            'options' => [
+                'allow_origins'   => ['http://localhost:5173'],
+                'allow_methods'   => ['GET', 'POST', 'OPTIONS'],
+                'allow_headers'   => ['Content-Type', 'X-Requested-With'],
+                'allow_credentials' => false,
+                'max_age'         => 600,
+            ],
+        ],
+    ],
+
     // ── Navigation ─────────────────────────────────────────────────────────
     'default_menu' => MenuIds::LANGUAGE,
     'main_menu'    => MenuIds::APP_OVERVIEW,
