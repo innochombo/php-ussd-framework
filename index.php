@@ -18,7 +18,7 @@ if (!function_exists('env')) {
 }
 
 ini_set('log_errors', '1');
-ini_set('error_log', __DIR__ . '/phpussd.log');
+ini_set('error_log', 'php://stderr');
 
 require_once __DIR__ . '/vendor/autoload.php';
 
