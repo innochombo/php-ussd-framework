@@ -48,10 +48,21 @@ require 'vendor/autoload.php';
 require 'config/MenuIds.php'; // not autoloaded — must be required explicitly
 
 $app = new \PhpUssd\Core\Application(require 'config/app.php');
-echo $app->run($_POST ?: $_GET);
+
+// PHP only auto-populates $_POST for form-encoded bodies.
+// JSON bodies (USSD simulator, REST clients) must be read from php://input.
+$contentType = $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? '';
+if (stripos($contentType, 'application/json') !== false) {
+    $raw = file_get_contents('php://input');
+    $payload = ($raw !== false && $raw !== '') ? (json_decode($raw, true) ?? []) : [];
+} else {
+    $payload = $_POST ?: $_GET;
+}
+
+echo $app->run($payload);
 ```
 
-`Application::run()` accepts an array of raw gateway parameters (typically `$_POST`). It parses the request, loads the session, runs the navigator, saves the session, and returns the serialized response string ready to echo.
+`Application::run()` accepts an array of raw gateway parameters. It parses the request, loads the session, runs the navigator, saves the session, and returns the serialized response string ready to echo.
 
 ---
 
@@ -66,9 +77,11 @@ use PhpUssd\Session\FileSessionManager;
 
 return [
     // ── Gateway ──────────────────────────────────────────────────────────────
-    'gateway' => AfricasTalkingDriver::class,
-    // Available: AfricasTalkingDriver::class, NaloDriver::class
+    // JsonDriver           → USSD simulator / local dev (JSON body, JSON response)
+    // AfricasTalkingDriver → Africa's Talking production (form-encoded, CON/END text)
+    // NaloDriver           → Nalo Solutions production
     // Custom: any class implementing GatewayDriverInterface
+    'gateway' => JsonDriver::class,
 
     // ── Session ──────────────────────────────────────────────────────────────
     'session' => [
@@ -539,10 +552,11 @@ The gateway driver normalises the incoming request from a specific USSD provider
 
 ### Built-in drivers
 
-| Driver | Provider | Request fields |
-|---|---|---|
-| `AfricasTalkingDriver` | Africa's Talking | `sessionId`, `phoneNumber`, `serviceCode`, `text`, `networkCode` |
-| `NaloDriver` | Nalo Solutions | `sessionid`, `msisdn`, `userdata`, `network`, `msgtype` |
+| Driver | Format | Request fields | Response format |
+|---|---|---|---|
+| `AfricasTalkingDriver` | Form-encoded | `sessionId`, `phoneNumber`, `serviceCode`, `text`, `networkCode` | Plain text `CON …` / `END …` |
+| `NaloDriver` | Form-encoded | `sessionid`, `msisdn`, `userdata`, `network`, `msgtype` | Plain text `CON …` / `END …` |
+| `JsonDriver` | JSON body | `sessionId`, `msisdn`, `serviceCode`, `input` | JSON `{"type","message","sessionId"}` |
 
 ### Custom driver
 
@@ -585,6 +599,200 @@ Register in config:
 ```php
 'gateway' => \App\Gateway\MyGatewayDriver::class,
 ```
+
+---
+
+## Middleware
+
+Middleware wraps every request that passes through `Application::run()`. Each middleware in the stack can inspect or modify the payload before passing it to the next layer, short-circuit the request entirely (returning a string directly), or add HTTP headers.
+
+The pipeline runs in the order the middleware are declared in config — outermost first, innermost last.
+
+### Interface
+
+```php
+namespace PhpUssd\Core;
+
+interface MiddlewareInterface
+{
+    /**
+     * Process the request.
+     *
+     * Call $next($payload) to pass through to the next middleware (or the app).
+     * Return a string directly to short-circuit — the response is sent immediately.
+     */
+    public function process(array $payload, callable $next): string;
+}
+```
+
+### Registering middleware
+
+Declare middleware in the `middleware` key of `config/app.php`. Each entry can be a class name string, an array with `class` and `options` keys, or a factory callable.
+
+```php
+// config/app.php
+'middleware' => [
+
+    // Simple class name — constructed with no arguments
+    \App\Middleware\RequestLoggerMiddleware::class,
+
+    // Array form — options array passed to the constructor
+    [
+        'class'   => \PhpUssd\Http\CorsMiddleware::class,
+        'options' => [
+            'allow_origins' => ['https://yourapp.com'],
+            'allow_methods' => ['GET', 'POST', 'OPTIONS'],
+            'allow_headers' => ['Content-Type', 'Authorization'],
+            'max_age'       => 3600,
+        ],
+    ],
+
+    // Factory callable — receives the Config object
+    function (\PhpUssd\Core\Config $config): \PhpUssd\Core\MiddlewareInterface {
+        return new \App\Middleware\TenantMiddleware($config->get('tenant_id'));
+    },
+],
+```
+
+---
+
+## CORS — `CorsMiddleware`
+
+`CorsMiddleware` is built into the framework and handles cross-origin requests from browser clients (the USSD simulator, web dashboards, etc.). It runs inside the middleware pipeline, so it requires the app to boot correctly — but it handles all CORS concerns without any logic in `index.php`.
+
+### How it works
+
+1. **Preflight (`OPTIONS`)** — sends the `Access-Control-Allow-*` headers and returns an empty response, short-circuiting the rest of the pipeline. The gateway, session, and menus are never touched.
+2. **Regular requests** — sends the `Access-Control-Allow-*` headers and passes through to the next middleware and the app.
+3. **Disallowed origins** — if the `Origin` header is present but not in the allowlist, no CORS headers are sent and the request passes through unchanged (the browser will block it).
+
+### Configuration options
+
+```php
+[
+    'class'   => \PhpUssd\Http\CorsMiddleware::class,
+    'options' => [
+
+        // Origins allowed to make cross-origin requests.
+        // Use ['*'] to allow all origins (not recommended in production).
+        'allow_origins' => ['http://localhost:5173'],
+
+        // HTTP methods the browser is allowed to use.
+        'allow_methods' => ['GET', 'POST', 'OPTIONS'],
+
+        // Request headers the browser is allowed to send.
+        'allow_headers' => ['Content-Type', 'X-Requested-With', 'Authorization'],
+
+        // Set to true only when sending cookies or HTTP auth credentials.
+        // Cannot be combined with allow_origins: ['*'].
+        'allow_credentials' => false,
+
+        // How long (seconds) the browser may cache the preflight response.
+        // 600 = 10 minutes. Set to 0 to disable caching.
+        'max_age' => 600,
+    ],
+],
+```
+
+### Development setup
+
+When using the [USSD Phone Simulator](https://ussd-phone-simulator.vercel.app/) — either the [hosted version](https://ussd-phone-simulator.vercel.app/) or running locally:
+
+```php
+'middleware' => [
+    [
+        'class'   => \PhpUssd\Http\CorsMiddleware::class,
+        'options' => [
+            'allow_origins' => [
+                'https://ussd-phone-simulator.vercel.app', // hosted simulator
+                'http://localhost:5173',                    // local dev
+            ],
+            'allow_methods' => ['GET', 'POST', 'OPTIONS'],
+            'allow_headers' => ['Content-Type', 'X-Requested-With'],
+            'max_age'       => 600,
+        ],
+    ],
+],
+```
+
+### Production setup
+
+```php
+'middleware' => [
+    [
+        'class'   => \PhpUssd\Http\CorsMiddleware::class,
+        'options' => [
+            'allow_origins' => [
+                'https://yourdomain.com',
+                'https://dashboard.yourdomain.com',
+            ],
+            'allow_methods' => ['POST', 'OPTIONS'],
+            'allow_headers' => ['Content-Type', 'Authorization'],
+            'max_age'       => 3600,
+        ],
+    ],
+],
+```
+
+For a production Africa's Talking integration where requests come server-to-server (no browser involved), you do not need CORS middleware at all — AT's servers do not send an `Origin` header.
+
+### Writing custom middleware
+
+```php
+<?php
+namespace App\Middleware;
+
+use PhpUssd\Core\MiddlewareInterface;
+
+class RequestLoggerMiddleware implements MiddlewareInterface
+{
+    public function process(array $payload, callable $next): string
+    {
+        $sessionId = $payload['sessionId'] ?? 'unknown';
+        $input     = $payload['input'] ?? $payload['text'] ?? '';
+
+        error_log("[USSD] session={$sessionId} input={$input}");
+
+        $response = $next($payload);
+
+        error_log("[USSD] session={$sessionId} response=" . substr($response, 0, 80));
+
+        return $response;
+    }
+}
+```
+
+Register it before `CorsMiddleware` so logging captures every request:
+
+```php
+'middleware' => [
+    \App\Middleware\RequestLoggerMiddleware::class,
+    [
+        'class'   => \PhpUssd\Http\CorsMiddleware::class,
+        'options' => [ /* ... */ ],
+    ],
+],
+```
+
+### Middleware execution order
+
+Middleware runs outermost-first. Given:
+
+```
+[LoggerMiddleware, CorsMiddleware, App core]
+```
+
+The execution order is:
+
+```
+LoggerMiddleware::process()
+  → CorsMiddleware::process()
+      → App core (gateway parse → session → navigator → session save)
+  ← CorsMiddleware returns
+← LoggerMiddleware returns
+```
+
+For an `OPTIONS` preflight, `CorsMiddleware` short-circuits — neither the app core nor any middleware registered after it runs.
 
 ---
 

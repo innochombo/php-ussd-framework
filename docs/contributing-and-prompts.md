@@ -28,7 +28,7 @@ Guidelines for contributing code, documentation, and example applications to Php
 
 | Change type | Where it lives |
 |---|---|
-| New gateway driver | `src/Gateway/` |
+| New gateway driver (e.g. for a new USSD provider) | `src/Gateway/` |
 | New session driver | `src/Session/` |
 | Extension to AbstractMenu, MultiStepMenu, PaginatedListMenu | `src/Menu/` |
 | New core value object | `src/Core/` |
@@ -164,7 +164,7 @@ This section is written for AI coding agents (GitHub Copilot, Claude Code, and o
 
 When starting a new conversation about this repository, provide this summary:
 
-> PhpUSSD is a PHP 8.1 USSD framework built around a state machine. Every screen is a class called a "menu" that extends `AbstractMenu`. A menu implements `display()` to render the screen, `handleInput()` to process input and return either a menu ID (transition) or a `UssdResponse` (direct response), and `getParentMenu()` to support back navigation. All menus are registered in `config/app.php`. The framework handles session management (FileSessionManager, RedisSessionManager, ArraySessionManager), gateway parsing (AfricasTalking, Nalo), translations (AbstractLanguage), and HTTP calls (HttpClient). Multi-step flows use the `MultiStepMenu` trait. Paginated lists use `PaginatedListMenu`. Guards implement `MenuGuardInterface`. There are no external Composer dependencies.
+> PhpUSSD is a PHP 8.1 USSD framework built around a state machine. Every screen is a class called a "menu" that extends `AbstractMenu`. A menu implements `display()` to render the screen, `handleInput()` to process input and return either a menu ID (transition) or a `UssdResponse` (direct response), and `getParentMenu()` to support back navigation. All menus are registered in `config/app.php`. The framework handles session management (FileSessionManager, RedisSessionManager, ArraySessionManager), gateway parsing (AfricasTalkingDriver, NaloDriver, JsonDriver), translations (AbstractLanguage), and HTTP calls (HttpClient). Multi-step flows use the `MultiStepMenu` trait. Paginated lists use `PaginatedListMenu`. Guards implement `MenuGuardInterface`. The `JsonDriver` gateway is used with the USSD Phone Simulator — it accepts `{"sessionId","serviceCode","msisdn","input"}` JSON and returns `{"type","message","sessionId"}` JSON. There are no external Composer dependencies.
 
 ### Context to include in a prompt
 

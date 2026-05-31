@@ -1,0 +1,31 @@
+# Composer dependencies
+/vendor/
+
+# Local configuration
+/.env
+/.env.local
+/.env.*.local
+/.phpunit.result.cache
+
+# IDEs and editors
+/.idea/
+/.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+tmp/
+
+# PHPUnit
+.phpunit.result.cache
+
+# Example session storage
+/example/storage/sessions/
+
+# Ignore Composer binary if accidentally committed
+composer.phar

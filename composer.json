@@ -13,6 +13,7 @@
     "autoload": {
         "psr-4": {
             "PhpUssd\\": "src/"
+            , "App\\": "example/"
         }
     },
     "autoload-dev": {

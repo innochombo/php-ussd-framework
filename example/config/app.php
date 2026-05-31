@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PhpUssd\Gateway\AfricasTalkingDriver;
+use PhpUssd\Gateway\JsonDriver;
 use PhpUssd\Session\FileSessionManager;
 
 // ── Menus ──────────────────────────────────────────────────────────────────
@@ -12,7 +13,9 @@ require_once __DIR__ . '/MenuIds.php';
 return [
 
     // ── Gateway ────────────────────────────────────────────────────────────
-    'gateway' => AfricasTalkingDriver::class,
+    // JsonDriver   — for the USSD Phone Simulator and API clients (JSON body/response)
+    // AfricasTalkingDriver — for production AT gateway (form-encoded body, CON/END text)
+    'gateway' => JsonDriver::class,
 
     // ── Session ────────────────────────────────────────────────────────────
     'session' => [
@@ -37,6 +40,23 @@ return [
         'headers'       => [
             'Content-Type' => 'application/json',
             'Accept'       => 'application/json',
+        ],
+    ],
+
+    // ── Middleware ───────────────────────────────────────────────────────────
+    'middleware' => [
+        [
+            'class' => \PhpUssd\Http\CorsMiddleware::class,
+            'options' => [
+                'allow_origins'   => [
+                    'https://ussd-phone-simulator.vercel.app', // hosted simulator
+                    'http://localhost:5173',                    // local dev
+                ],
+                'allow_methods'   => ['GET', 'POST', 'OPTIONS'],
+                'allow_headers'   => ['Content-Type', 'X-Requested-With'],
+                'allow_credentials' => false,
+                'max_age'         => 600,
+            ],
         ],
     ],
 
