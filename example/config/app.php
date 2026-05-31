@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PhpUssd\Gateway\AfricasTalkingDriver;
+use PhpUssd\Gateway\JsonDriver;
 use PhpUssd\Session\FileSessionManager;
 
 // ── Menus ──────────────────────────────────────────────────────────────────
@@ -12,7 +13,9 @@ require_once __DIR__ . '/MenuIds.php';
 return [
 
     // ── Gateway ────────────────────────────────────────────────────────────
-    'gateway' => AfricasTalkingDriver::class,
+    // JsonDriver   — for the USSD Phone Simulator and API clients (JSON body/response)
+    // AfricasTalkingDriver — for production AT gateway (form-encoded body, CON/END text)
+    'gateway' => JsonDriver::class,
 
     // ── Session ────────────────────────────────────────────────────────────
     'session' => [
