@@ -435,3 +435,4 @@ src/
 | [Framework Philosophy](docs/framework-philosophy.md) | Architecture, design principles, and what the framework deliberately omits |
 | [Guidelines & Usage](docs/guidelines-usage.md) | Practical reference: menus, sessions, translations, HTTP client, guards, testing |
 | [Contributing & AI Prompts](docs/contributing-and-prompts.md) | Contribution guide and AI agent context |
+| [Changelog](CHANGELOG.md) | Release history and what changed in each version |
