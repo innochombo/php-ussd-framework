@@ -696,14 +696,17 @@ Declare middleware in the `middleware` key of `config/app.php`. Each entry can b
 
 ### Development setup
 
-When using the [USSD Phone Simulator](https://github.com/your-org/ussd_phone_simulator) locally:
+When using the [USSD Phone Simulator](https://ussd-phone-simulator.vercel.app/) — either the [hosted version](https://ussd-phone-simulator.vercel.app/) or running locally:
 
 ```php
 'middleware' => [
     [
         'class'   => \PhpUssd\Http\CorsMiddleware::class,
         'options' => [
-            'allow_origins' => ['http://localhost:5173'],
+            'allow_origins' => [
+                'https://ussd-phone-simulator.vercel.app', // hosted simulator
+                'http://localhost:5173',                    // local dev
+            ],
             'allow_methods' => ['GET', 'POST', 'OPTIONS'],
             'allow_headers' => ['Content-Type', 'X-Requested-With'],
             'max_age'       => 600,

@@ -76,7 +76,7 @@ A fast, minimal PHP framework for building state-machine-based USSD applications
 
 | Feature | Description |
 |---|---|
-| **`JsonDriver`** | Speaks the same protocol as the [USSD Phone Simulator](https://github.com/your-org/ussd_phone_simulator) — accepts `{"sessionId","serviceCode","msisdn","input"}`, returns `{"type","message","sessionId"}`. |
+| **`JsonDriver`** | Speaks the same protocol as the [USSD Phone Simulator](https://ussd-phone-simulator.vercel.app/) — accepts `{"sessionId","serviceCode","msisdn","input"}`, returns `{"type","message","sessionId"}`. |
 | **JSON body parsing** | `index.php` detects `Content-Type: application/json` and reads from `php://input` automatically. No changes to menus needed. |
 | **CORS via middleware** | Configure `CorsMiddleware` in `app.php` to allow the simulator origin. No CORS logic needed in `index.php`. |
 

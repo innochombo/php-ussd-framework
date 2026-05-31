@@ -48,7 +48,10 @@ return [
         [
             'class' => \PhpUssd\Http\CorsMiddleware::class,
             'options' => [
-                'allow_origins'   => ['http://localhost:5173'],
+                'allow_origins'   => [
+                    'https://ussd-phone-simulator.vercel.app', // hosted simulator
+                    'http://localhost:5173',                    // local dev
+                ],
                 'allow_methods'   => ['GET', 'POST', 'OPTIONS'],
                 'allow_headers'   => ['Content-Type', 'X-Requested-With'],
                 'allow_credentials' => false,
